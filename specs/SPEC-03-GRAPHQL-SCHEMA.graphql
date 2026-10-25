@@ -1,0 +1,99 @@
+"""
+PulseOps AI — Enterprise Fleet & Incident GraphQL Schema (2026)
+Supports Apollo Client 3.12+, Apollo Server / GQLGen, and strict code-gen.
+"""
+
+enum IncidentSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum IncidentStatus {
+  TRIGGERED
+  INVESTIGATING
+  AUTO_HEALING
+  RESOLVED
+}
+
+enum WorkerStatus {
+  HEALTHY
+  DEGRADED
+  OOM_RESTARTING
+  DRAINING
+  OFFLINE
+}
+
+type GPUWorker {
+  id: ID!
+  hostname: String!
+  region: String!
+  gpuModel: String!
+  totalVRAMMb: Int!
+  usedVRAMMb: Int!
+  utilizationPct: Float!
+  temperatureC: Float!
+  cachedModels: [String!]!
+  status: WorkerStatus!
+  activeJobsCount: Int!
+}
+
+type ClusterTelemetry {
+  timestamp: String!
+  totalActiveWorkers: Int!
+  totalQueuedJobs: Int!
+  p99LatencyMs: Float!
+  currentBackpressureState: String!
+  costPerHourUsd: Float!
+}
+
+type Incident {
+  id: ID!
+  title: String!
+  summary: String!
+  severity: IncidentSeverity!
+  status: IncidentStatus!
+  affectedWorkers: [GPUWorker!]!
+  rootCauseAnalysis: String
+  suggestedAction: String
+  autoHealSuccess: Boolean
+  createdAt: String!
+  resolvedAt: String
+}
+
+input IncidentTriageInput {
+  incidentId: ID!
+  action: String! # e.g. "RESTART_POD", "DRAIN_NODE", "FALLBACK_RESOLUTION"
+  acknowledgedBy: String!
+}
+
+type Query {
+  clusterTelemetry: ClusterTelemetry!
+  gpuWorkers(status: WorkerStatus): [GPUWorker!]!
+  incidents(status: IncidentStatus, limit: Int = 50): [Incident!]!
+  incident(id: ID!): Incident
+}
+
+type Mutation {
+  triageIncident(input: IncidentTriageInput!): Incident!
+  drainWorker(workerId: ID!): GPUWorker!
+  setQueueBackpressure(tier: String!, throttleRatio: Float!): Boolean!
+}
+
+type Subscription {
+  """
+  Real-time stream of cluster telemetry emitted every 1,000ms
+  """
+  telemetryStream: ClusterTelemetry!
+
+  """
+  Triggered instantly when an incident is opened, escalated, or auto-healed
+  """
+  incidentUpdated: Incident!
+
+  """
+  Live state change of any GPU worker (e.g. OOM event, model reload)
+  """
+  workerStateChanged: GPUWorker!
+}
